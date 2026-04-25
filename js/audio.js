@@ -90,8 +90,8 @@ MT.Audio = (function () {
   // AIDEV-NOTE: Farnsworth in single-character training.
   // Real Farnsworth stretches inter-character/word gaps so effective WPM is lower
   // than character WPM. With one char per prompt there is no audible inter-char gap,
-  // so we instead surface Farnsworth as a post-playback "think pause" — the time the
-  // missing inter-character gap would have taken at the effective WPM. Returns ms.
+  // so we surface Farnsworth as the inter-prompt cadence delay (applied between
+  // feedback and the next letter, so the lockout is invisible to the user). Returns ms.
   function farnsworthGapMs() {
     const charUnit = unitMs(charWpm);
     const effUnit = unitMs(effWpm);
@@ -101,15 +101,6 @@ MT.Audio = (function () {
     // implied by the gap between actual char speed and effective speed.
     const extra = (effUnit - charUnit) * 19;
     return Math.max(standardGap, standardGap + extra);
-  }
-
-  // Returns a promise that resolves after the Farnsworth pause; cancelable via stop().
-  function farnsworthPause() {
-    const ms = farnsworthGapMs();
-    return new Promise((resolve) => {
-      const id = setTimeout(resolve, ms);
-      scheduledTimers.push(id);
-    });
   }
 
   function speakLetter(letter) {
@@ -159,7 +150,7 @@ MT.Audio = (function () {
   }
 
   return {
-    ensureCtx, playMorse, speakLetter, stop, farnsworthPause, farnsworthGapMs, blip,
+    ensureCtx, playMorse, speakLetter, stop, farnsworthGapMs, blip,
     setWPM, setFarnsworth, setFrequency,
     getCharWpm, getEffWpm,
   };

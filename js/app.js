@@ -274,14 +274,11 @@ window.MT = window.MT || {};
       if (myToken !== promptToken) return;
     }
 
-    // Audio aid: play the morse if adaptive thresholds say so.
-    // After playback, hold for the Farnsworth gap so the cadence matches the
-    // user's chosen effective WPM (e.g., 13 WPM feels distinctly slower than
-    // 18 WPM even when individual character timing is the same).
+    // Audio aid: play the morse if adaptive thresholds say so. Input stays
+    // locked only while the audio is actually playing — once it finishes the
+    // user can key immediately (no hidden post-prompt lockout).
     if (MT.SRS.shouldUseAudioAid(currentChar)) {
       await MT.Audio.playMorse(currentMorse);
-      if (myToken !== promptToken) return;
-      await MT.Audio.farnsworthPause();
       if (myToken !== promptToken) return;
     }
 
@@ -335,11 +332,17 @@ window.MT = window.MT || {};
     showFeedback(correct);
     renderProgressTable();
     MT.Audio.blip(correct);
+    // The Farnsworth gap is applied here, BEFORE the next prompt appears — so
+    // by the time a new letter is shown the user can key immediately. This
+    // keeps cadence training honest while avoiding a confusing dead zone after
+    // the prompt becomes visible.
     clearAdvanceTimer();
+    const baseDelay = correct ? 600 : 1400;
+    const totalDelay = baseDelay + Math.round(MT.Audio.farnsworthGapMs());
     advanceTimer = setTimeout(() => {
       advanceTimer = null;
       nextPrompt();
-    }, correct ? 600 : 1400);
+    }, totalDelay);
   }
 
   function showFeedback(correct) {

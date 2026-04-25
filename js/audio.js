@@ -56,6 +56,7 @@ MT.Audio = (function () {
     const ATTACK = 0.005, RELEASE = 0.005;
     const startAt = c.currentTime + 0.05;
     let t = startAt;
+    let lastToneEnd = startAt;       // resolve based on actual last tone, not the trailing gap
 
     for (let i = 0; i < symbols.length; i++) {
       const sym = symbols[i];
@@ -77,10 +78,11 @@ MT.Audio = (function () {
       osc.stop(t + dur + 0.02);
       scheduled.push(osc);
 
-      t += dur + charUnit; // 1-unit intra-character gap between dits/dahs
+      lastToneEnd = t + dur;
+      t += dur + charUnit;            // intra-character gap; only used between symbols, not as a tail
     }
 
-    const totalSec = t - startAt;
+    const totalSec = lastToneEnd - startAt;
     return new Promise((resolve) => {
       const id = setTimeout(resolve, totalSec * 1000 + 30);
       scheduledTimers.push(id);

@@ -102,7 +102,14 @@ window.MT = window.MT || {};
     $("#ditKey").addEventListener("change", (e) => updateKeyBinding("ditKey", e.target.value));
     $("#dahKey").addEventListener("change", (e) => updateKeyBinding("dahKey", e.target.value));
 
-    $("#replay").addEventListener("click", () => playCurrent());
+    $("#replay").addEventListener("click", () => {
+      // If a post-evaluate auto-advance is pending, the user is explicitly
+      // staying with the current prompt to hear it again — cancel the
+      // auto-advance so the replay isn't cut off mid-tone. They'll need to
+      // press Skip/N to move on.
+      if (advanceTimer !== null) clearAdvanceTimer();
+      playCurrent();
+    });
     $("#skip").addEventListener("click", () => nextPrompt());
 
     // Touch paddles. Listen on pointerdown so taps are responsive on mobile;
@@ -333,16 +340,18 @@ window.MT = window.MT || {};
     renderProgressTable();
     MT.Audio.blip(correct);
     // The Farnsworth gap is applied here, BEFORE the next prompt appears — so
-    // by the time a new letter is shown the user can key immediately. This
-    // keeps cadence training honest while avoiding a confusing dead zone after
-    // the prompt becomes visible.
+    // by the time a new letter is shown the user can key immediately. We only
+    // add it when audio actually played for this prompt: cadence training has
+    // no meaning in letter-only mode (where mastered chars run silently and the
+    // user is doing pure recall, not copy).
     clearAdvanceTimer();
     const baseDelay = correct ? 600 : 1400;
-    const totalDelay = baseDelay + Math.round(MT.Audio.farnsworthGapMs());
+    const audioWasOn = MT.SRS.shouldUseAudioAid(currentChar);
+    const fwGap = audioWasOn ? Math.round(MT.Audio.farnsworthGapMs()) : 0;
     advanceTimer = setTimeout(() => {
       advanceTimer = null;
       nextPrompt();
-    }, totalDelay);
+    }, baseDelay + fwGap);
   }
 
   function showFeedback(correct) {

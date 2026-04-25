@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Morse Trainer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Morse Trainer</h1>
+    <div class="aid-status" id="aidStatus" aria-live="polite"></div>
+  </header>
+
+  <main>
+    <section class="prompt-area" aria-label="Current prompt">
+      <div class="prompt" id="prompt">—</div>
+      <div class="morse-visual" id="morseVisual"></div>
+      <div class="buffer" id="buffer" aria-label="Your input">&nbsp;</div>
+      <div class="feedback" id="feedback" aria-live="polite"></div>
+      <div class="controls">
+        <button id="replay" type="button" title="Replay current Morse (R)">▶ Replay</button>
+        <button id="skip" type="button" title="Skip to next (N)">⤼ Skip</button>
+      </div>
+      <p class="hint">
+        <kbd>[</kbd> dit · <kbd>]</kbd> dah · <kbd>Space</kbd>/<kbd>Enter</kbd> submit ·
+        <kbd>Backspace</kbd> erase · <kbd>R</kbd> replay · <kbd>N</kbd> next
+      </p>
+    </section>
+
+    <aside class="settings" aria-label="Settings">
+      <h2>Settings</h2>
+
+      <label>
+        <span class="row">Character speed (WPM) <strong id="wpmVal">18</strong></span>
+        <input type="range" id="wpm" min="5" max="35" step="1" value="18" />
+      </label>
+
+      <label>
+        <span class="row">Effective WPM (Farnsworth) <strong id="farnsworthVal">13</strong></span>
+        <input type="range" id="farnsworthWpm" min="5" max="35" step="1" value="13" />
+      </label>
+
+      <label>
+        <span class="row">Tone (Hz) <strong id="freqVal">600</strong></span>
+        <input type="range" id="freq" min="300" max="1000" step="20" value="600" />
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" id="speakLetter" />
+        <span>Speak the letter before the Morse</span>
+      </label>
+
+      <label>
+        <span class="row">Audio aid</span>
+        <select id="audioAid">
+          <option value="adaptive">adaptive — fades as you learn</option>
+          <option value="always">always play</option>
+          <option value="never">never play</option>
+        </select>
+      </label>
+
+      <label>
+        <span class="row">Visual aid</span>
+        <select id="visualAid">
+          <option value="adaptive">adaptive — fades as you learn</option>
+          <option value="always">always show</option>
+          <option value="never">never show</option>
+        </select>
+      </label>
+
+      <details>
+        <summary>Key bindings (USB Morse keys)</summary>
+        <div class="keybinds">
+          <label><span>Dit key</span><input type="text" id="ditKey" maxlength="1" /></label>
+          <label><span>Dah key</span><input type="text" id="dahKey" maxlength="1" /></label>
+        </div>
+        <p class="muted">
+          USB keys/paddles that emulate a keyboard work here — set the dit and dah characters
+          they emit. Most cheap USB paddles either send <kbd>[</kbd>/<kbd>]</kbd> already or
+          can be reconfigured to.
+        </p>
+      </details>
+
+      <button id="reset" class="danger" type="button">Reset all progress</button>
+    </aside>
+
+    <section class="progress" aria-label="Progress">
+      <h2>Progress</h2>
+      <div id="progress"></div>
+    </section>
+  </main>
+
+  <div id="startOverlay" class="overlay" hidden>
+    <div class="overlay-card">
+      <h2>Ready to train?</h2>
+      <p>Click below to start. Browsers require a user click before audio can play.</p>
+      <button type="button">Start training</button>
+      <p class="muted">
+        Default keys: <kbd>[</kbd> for dit, <kbd>]</kbd> for dah.
+        Change them in Settings if your USB Morse key sends different characters.
+      </p>
+    </div>
+  </div>
+
+  <script src="js/morse.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/srs.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

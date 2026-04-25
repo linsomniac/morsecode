@@ -224,6 +224,7 @@ window.MT = window.MT || {};
 
   function appendSymbol(sym) {
     if (!currentMorse) return;
+    MT.Audio.playSymbol(sym);
     userBuffer += sym;
     renderBuffer();
 

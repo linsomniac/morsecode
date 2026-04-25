@@ -89,6 +89,32 @@ MT.Audio = (function () {
     });
   }
 
+  // Play a single dit or dah right now, as a sidetone for user input. Doesn't
+  // call stop() (so successive fast keystrokes layer naturally), but does push
+  // into `scheduled` so a subsequent prompt's stop() can cancel a tone still
+  // ringing across the prompt boundary.
+  function playSymbol(sym) {
+    const c = ensureCtx();
+    if (!c) return;
+    const charUnit = unitMs(charWpm) / 1000;
+    const dur = sym === "." ? charUnit : sym === "-" ? 3 * charUnit : 0;
+    if (!dur) return;
+    const ATTACK = 0.005, RELEASE = 0.005;
+    const t = c.currentTime;
+    const osc = c.createOscillator();
+    const gain = c.createGain();
+    osc.frequency.value = frequency;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.35, t + ATTACK);
+    gain.gain.setValueAtTime(0.35, t + dur - RELEASE);
+    gain.gain.linearRampToValueAtTime(0, t + dur);
+    osc.connect(gain).connect(c.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+    scheduled.push(osc);
+  }
+
   // AIDEV-NOTE: Farnsworth in single-character training.
   // Real Farnsworth stretches inter-character/word gaps so effective WPM is lower
   // than character WPM. With one char per prompt there is no audible inter-char gap,
@@ -117,7 +143,11 @@ MT.Audio = (function () {
         resolve();
       };
       try {
-        const u = new SpeechSynthesisUtterance(String(letter));
+        // Some TTS voices announce uppercase letters as "capital M" etc.;
+        // lowercase the letter so it's read as just the name. Digits and
+        // punctuation are unaffected by case.
+        const spoken = String(letter).toLowerCase();
+        const u = new SpeechSynthesisUtterance(spoken);
         u.rate = 0.9;
         u.pitch = 1.0;
         u.volume = 1.0;
@@ -152,7 +182,7 @@ MT.Audio = (function () {
   }
 
   return {
-    ensureCtx, playMorse, speakLetter, stop, farnsworthGapMs, blip,
+    ensureCtx, playMorse, playSymbol, speakLetter, stop, farnsworthGapMs, blip,
     setWPM, setFarnsworth, setFrequency,
     getCharWpm, getEffWpm,
   };

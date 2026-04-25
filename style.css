@@ -143,11 +143,17 @@ main {
   letter-spacing: 0.12em;
   min-height: 2.2rem;
   color: var(--accent);
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, color 0.15s ease;
 }
 
 .morse-visual.hidden-aid { opacity: 0; }
-.morse-visual.wrong-answer { color: var(--bad); transition: color 0.15s ease; }
+.morse-visual.wrong-answer { color: var(--bad); }
+/* Non-color cue: a ✗ badge prefixes the morse so the wrong-answer state is
+   visible to anyone who can't perceive the red. */
+.morse-visual.wrong-answer::before {
+  content: "✗\00a0\00a0";   /* ✗ + two non-breaking spaces */
+  margin-right: 0.1em;
+}
 
 .buffer {
   font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;

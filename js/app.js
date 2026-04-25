@@ -102,14 +102,7 @@ window.MT = window.MT || {};
     $("#ditKey").addEventListener("change", (e) => updateKeyBinding("ditKey", e.target.value));
     $("#dahKey").addEventListener("change", (e) => updateKeyBinding("dahKey", e.target.value));
 
-    $("#replay").addEventListener("click", () => {
-      // If a post-evaluate auto-advance is pending, the user is explicitly
-      // staying with the current prompt to hear it again — cancel the
-      // auto-advance so the replay isn't cut off mid-tone. They'll need to
-      // press Skip/N to move on.
-      if (advanceTimer !== null) clearAdvanceTimer();
-      playCurrent();
-    });
+    $("#replay").addEventListener("click", triggerReplay);
     $("#skip").addEventListener("click", () => nextPrompt());
 
     // Touch paddles. Listen on pointerdown so taps are responsive on mobile;
@@ -221,7 +214,7 @@ window.MT = window.MT || {};
         if (!inputLocked && userBuffer.length) evaluate();
       } else if (key === "r" || key === "R") {
         e.preventDefault();
-        playCurrent();
+        triggerReplay();
       } else if (key === "n" || key === "N") {
         e.preventDefault();
         nextPrompt();
@@ -318,9 +311,26 @@ window.MT = window.MT || {};
       .join("  ");
   }
 
+  // Pronounceable form for the aria-live feedback ("dah dit dah") so screen
+  // readers get the answer, not just the visual symbols in #morseVisual.
+  function morseSpoken(s) {
+    return s
+      .split("")
+      .map((c) => (c === "." ? "dit" : c === "-" ? "dah" : c))
+      .join(" ");
+  }
+
   function playCurrent() {
     if (!currentMorse) return;
     MT.Audio.playMorse(currentMorse);
+  }
+
+  // Single entry point for "replay the current prompt". If a post-evaluate
+  // auto-advance is pending, the user is staying with the current prompt to
+  // hear it again — cancel the auto-advance so the replay isn't cut off.
+  function triggerReplay() {
+    if (advanceTimer !== null) clearAdvanceTimer();
+    playCurrent();
   }
 
   function renderBuffer() {
@@ -369,7 +379,10 @@ window.MT = window.MT || {};
       morseVisual.textContent = formatMorseVisual(currentMorse);
       morseVisual.classList.remove("hidden-aid");
       morseVisual.classList.add("wrong-answer");
-      fb.textContent = `✗  ${MT.displayLabel(currentChar)}`;
+      // The morseVisual itself isn't aria-live (it'd be too noisy on every
+      // prompt change), so include the pronounceable morse in the feedback
+      // region so screen readers get the answer, not just the letter.
+      fb.textContent = `✗  ${MT.displayLabel(currentChar)}  is  ${morseSpoken(currentMorse)}`;
       fb.className = "feedback bad";
     }
   }

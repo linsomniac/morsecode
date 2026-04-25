@@ -296,8 +296,10 @@ window.MT = window.MT || {};
   function renderPrompt() {
     $("#prompt").textContent = MT.displayLabel(currentChar);
     const visAid = MT.SRS.shouldUseVisualAid(currentChar);
-    $("#morseVisual").textContent = visAid ? formatMorseVisual(currentMorse) : "";
-    $("#morseVisual").classList.toggle("hidden-aid", !visAid);
+    const morseVisual = $("#morseVisual");
+    morseVisual.textContent = visAid ? formatMorseVisual(currentMorse) : "";
+    morseVisual.classList.toggle("hidden-aid", !visAid);
+    morseVisual.classList.remove("wrong-answer");   // clear any leftover red from the previous prompt
     refreshAidStatus();
   }
 
@@ -356,12 +358,18 @@ window.MT = window.MT || {};
 
   function showFeedback(correct) {
     const fb = $("#feedback");
+    const morseVisual = $("#morseVisual");
     if (correct) {
-      fb.textContent = `✓  ${MT.displayLabel(currentChar)}   ${formatMorseVisual(currentMorse)}`;
+      fb.textContent = `✓  ${MT.displayLabel(currentChar)}`;
       fb.className = "feedback ok";
     } else {
-      const got = userBuffer ? formatMorseVisual(userBuffer) : "(nothing)";
-      fb.textContent = `✗  you sent ${got}   →   ${MT.displayLabel(currentChar)} is ${formatMorseVisual(currentMorse)}`;
+      // Surface the correct morse where the visual aid normally lives, in red.
+      // Works whether or not the aid was on for this prompt — when wrong, the
+      // user needs to see the answer regardless of mastery state.
+      morseVisual.textContent = formatMorseVisual(currentMorse);
+      morseVisual.classList.remove("hidden-aid");
+      morseVisual.classList.add("wrong-answer");
+      fb.textContent = `✗  ${MT.displayLabel(currentChar)}`;
       fb.className = "feedback bad";
     }
   }

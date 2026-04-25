@@ -147,6 +147,7 @@ main {
 }
 
 .morse-visual.hidden-aid { opacity: 0; }
+.morse-visual.wrong-answer { color: var(--bad); transition: color 0.15s ease; }
 
 .buffer {
   font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;

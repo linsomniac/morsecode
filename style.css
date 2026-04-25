@@ -193,6 +193,31 @@ main {
   justify-content: center;
 }
 
+.paddles {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.paddle {
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  width: 5.5rem;
+  height: 3.5rem;
+  border-radius: 12px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  touch-action: manipulation;     /* avoid 300ms tap delay on mobile */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.paddle:active { filter: brightness(1.2); transform: translateY(1px); }
+.paddle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 button {
   background: var(--panel-2);
   color: var(--fg);
@@ -296,6 +321,7 @@ details[open] summary::before { content: "▾ "; }
 }
 
 .muted { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
+.muted.bad { color: var(--bad); }
 
 /* Progress table */
 .progress table {

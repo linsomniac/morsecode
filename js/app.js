@@ -13,6 +13,7 @@ window.MT = window.MT || {};
   let evaluating = false;
   let started = false;          // user has clicked Start (unlocks audio)
   let promptToken = 0;          // increments to invalidate stale async prompts
+  let advanceTimer = null;      // setTimeout id for auto-advance after evaluate()
 
   // ---- init ---------------------------------------------------------------
 
@@ -98,17 +99,34 @@ window.MT = window.MT || {};
     $("#visualAid").addEventListener("change", (e) => {
       state.settings.visualAid = e.target.value; MT.SRS.save(); refreshAidStatus();
     });
-    $("#ditKey").addEventListener("change", (e) => {
-      state.settings.ditKey = (e.target.value || "[")[0]; MT.SRS.save();
-      $("#ditKey").value = state.settings.ditKey;
-    });
-    $("#dahKey").addEventListener("change", (e) => {
-      state.settings.dahKey = (e.target.value || "]")[0]; MT.SRS.save();
-      $("#dahKey").value = state.settings.dahKey;
-    });
+    $("#ditKey").addEventListener("change", (e) => updateKeyBinding("ditKey", e.target.value));
+    $("#dahKey").addEventListener("change", (e) => updateKeyBinding("dahKey", e.target.value));
 
     $("#replay").addEventListener("click", () => playCurrent());
     $("#skip").addEventListener("click", () => nextPrompt());
+
+    // Touch paddles. Listen on pointerdown so taps are responsive on mobile;
+    // also accept click for keyboard activation. preventDefault on pointerdown
+    // suppresses the synthesized click that would otherwise double-fire.
+    function bindPaddle(id, sym) {
+      const btn = $("#" + id);
+      if (!btn) return;
+      let handled = false;
+      btn.addEventListener("pointerdown", (e) => {
+        if (!started || inputLocked) return;
+        e.preventDefault();
+        handled = true;
+        appendSymbol(sym);
+        btn.blur();   // don't leave focus on the paddle so keyboard play continues to work
+      });
+      btn.addEventListener("click", (e) => {
+        if (handled) { handled = false; return; }
+        if (!started || inputLocked) return;
+        appendSymbol(sym);
+      });
+    }
+    bindPaddle("ditButton", ".");
+    bindPaddle("dahButton", "-");
     $("#reset").addEventListener("click", () => {
       if (confirm("Reset all progress? This wipes saved stats and active characters.")) {
         state = MT.SRS.reset();
@@ -118,6 +136,27 @@ window.MT = window.MT || {};
         nextPrompt();
       }
     });
+
+    function updateKeyBinding(field, raw) {
+      const previous = state.settings[field];
+      const candidate = typeof raw === "string" && raw.length ? raw[0] : "";
+      const otherField = field === "ditKey" ? "dahKey" : "ditKey";
+      const valid = MT.SRS.isValidKeyChar(candidate) && candidate !== state.settings[otherField];
+      const final = valid ? candidate : previous;
+      state.settings[field] = final;
+      $("#" + field).value = final;
+      MT.SRS.save();
+      const status = $("#keyBindingStatus");
+      if (status) {
+        if (!valid && raw) {
+          status.textContent = `Rejected — must be a single non-reserved character, distinct from the other paddle.`;
+          status.classList.add("bad");
+        } else {
+          status.textContent = "";
+          status.classList.remove("bad");
+        }
+      }
+    }
 
     $("#startOverlay button").addEventListener("click", () => {
       MT.Audio.ensureCtx();      // unlock audio under user gesture
@@ -129,11 +168,21 @@ window.MT = window.MT || {};
 
   // ---- keyboard input -----------------------------------------------------
 
+  // AIDEV-NOTE: Anything that handles its own activation keys natively must be
+  // exempt — otherwise pressing Space on a focused button or Enter on a focused
+  // <summary> would be eaten by our handler and the user couldn't activate it.
+  function isInteractiveTarget(el) {
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") return true;
+    if (tag === "button" || tag === "summary" || tag === "a") return true;
+    if (el.isContentEditable) return true;
+    return false;
+  }
+
   function bindKeys() {
     document.addEventListener("keydown", (e) => {
-      // ignore typing into form fields
-      const tag = (e.target.tagName || "").toLowerCase();
-      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (isInteractiveTarget(e.target)) return;
 
       // start overlay: any key dismisses it
       if (!started) {
@@ -189,9 +238,17 @@ window.MT = window.MT || {};
 
   // ---- prompt cycle -------------------------------------------------------
 
+  function clearAdvanceTimer() {
+    if (advanceTimer !== null) {
+      clearTimeout(advanceTimer);
+      advanceTimer = null;
+    }
+  }
+
   async function nextPrompt() {
     promptToken++;
     const myToken = promptToken;
+    clearAdvanceTimer();
     MT.Audio.stop();
     inputLocked = true;
     evaluating = false;
@@ -218,8 +275,13 @@ window.MT = window.MT || {};
     }
 
     // Audio aid: play the morse if adaptive thresholds say so.
+    // After playback, hold for the Farnsworth gap so the cadence matches the
+    // user's chosen effective WPM (e.g., 13 WPM feels distinctly slower than
+    // 18 WPM even when individual character timing is the same).
     if (MT.SRS.shouldUseAudioAid(currentChar)) {
       await MT.Audio.playMorse(currentMorse);
+      if (myToken !== promptToken) return;
+      await MT.Audio.farnsworthPause();
       if (myToken !== promptToken) return;
     }
 
@@ -273,7 +335,11 @@ window.MT = window.MT || {};
     showFeedback(correct);
     renderProgressTable();
     MT.Audio.blip(correct);
-    setTimeout(nextPrompt, correct ? 600 : 1400);
+    clearAdvanceTimer();
+    advanceTimer = setTimeout(() => {
+      advanceTimer = null;
+      nextPrompt();
+    }, correct ? 600 : 1400);
   }
 
   function showFeedback(correct) {
@@ -290,49 +356,85 @@ window.MT = window.MT || {};
 
   // ---- progress panel -----------------------------------------------------
 
+  // AIDEV-NOTE: Built with DOM APIs (textContent only) because progress entries
+  // come from localStorage, which is treated as untrusted (a corrupted/crafted
+  // entry like {trials: "<img onerror=...>"} must not be able to inject HTML).
   function renderProgressTable() {
     const wrap = $("#progress");
     if (!wrap) return;
 
-    const headerRow = `<tr>
-      <th>ch</th><th>morse</th><th>trials</th><th>recent</th><th>lifetime</th><th>aids</th>
-    </tr>`;
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    for (const label of ["ch", "morse", "trials", "recent", "lifetime", "aids"]) {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
 
-    const rows = state.activeChars.map((ch) => {
+    const tbody = document.createElement("tbody");
+    for (const ch of state.activeChars) {
       const p = state.progress[ch] || { trials: 0, correct: 0, recent: [] };
-      const rec = p.recent.length ? Math.round(MT.SRS.recentAccuracy(ch) * 100) : null;
-      const life = p.trials ? Math.round((p.correct / p.trials) * 100) : null;
+      const recent = p.recent && p.recent.length
+        ? Math.round(MT.SRS.recentAccuracy(ch) * 100) + "%"
+        : "—";
+      const lifetime = p.trials
+        ? Math.round((p.correct / p.trials) * 100) + "%"
+        : "—";
       const aud = MT.SRS.shouldUseAudioAid(ch);
       const vis = MT.SRS.shouldUseVisualAid(ch);
-      const aidLabel = aud || vis
-        ? `${aud ? "🔊" : ""}${vis ? "👁" : ""}`
-        : "<span class='muted'>off</span>";
-      return `<tr>
-        <td><b>${escapeHtml(MT.displayLabel(ch))}</b></td>
-        <td><code>${formatMorseVisual(MT.charToMorse(ch))}</code></td>
-        <td>${p.trials}</td>
-        <td>${rec === null ? "—" : rec + "%"}</td>
-        <td>${life === null ? "—" : life + "%"}</td>
-        <td title="audio aid · visual aid">${aidLabel}</td>
-      </tr>`;
-    }).join("");
 
+      const tr = document.createElement("tr");
+
+      const tdCh = document.createElement("td");
+      const b = document.createElement("b");
+      b.textContent = MT.displayLabel(ch);
+      tdCh.appendChild(b);
+      tr.appendChild(tdCh);
+
+      const tdMorse = document.createElement("td");
+      const code = document.createElement("code");
+      code.textContent = formatMorseVisual(MT.charToMorse(ch) || "");
+      tdMorse.appendChild(code);
+      tr.appendChild(tdMorse);
+
+      const tdTrials = document.createElement("td");
+      tdTrials.textContent = String(Number(p.trials) || 0);
+      tr.appendChild(tdTrials);
+
+      const tdRecent = document.createElement("td");
+      tdRecent.textContent = recent;
+      tr.appendChild(tdRecent);
+
+      const tdLife = document.createElement("td");
+      tdLife.textContent = lifetime;
+      tr.appendChild(tdLife);
+
+      const tdAids = document.createElement("td");
+      tdAids.title = "audio aid · visual aid";
+      if (aud || vis) {
+        tdAids.textContent = `${aud ? "🔊" : ""}${vis ? "👁" : ""}`;
+      } else {
+        const span = document.createElement("span");
+        span.className = "muted";
+        span.textContent = "off";
+        tdAids.appendChild(span);
+      }
+      tr.appendChild(tdAids);
+
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
     const remaining = MT.KOCH_ORDER.length - state.activeChars.length;
-    wrap.innerHTML = `
-      <table>
-        <thead>${headerRow}</thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="meta">
-        active ${state.activeChars.length} · remaining in Koch ${remaining} · attempts ${state.stats.totalAttempts || 0}
-      </div>
-    `;
-  }
+    const attempts = Number(state.stats.totalAttempts) || 0;
+    meta.textContent = `active ${state.activeChars.length} · remaining in Koch ${remaining} · attempts ${attempts}`;
 
-  function escapeHtml(s) {
-    return String(s).replace(/[&<>"']/g, (c) => ({
-      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    }[c]));
+    wrap.replaceChildren(table, meta);
   }
 
   // ---- boot ---------------------------------------------------------------

@@ -39,6 +39,10 @@ MT.Audio = (function () {
     scheduled = [];
     for (const t of scheduledTimers) clearTimeout(t);
     scheduledTimers = [];
+    // Cancel any in-flight TTS so a new prompt isn't talked over.
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try { window.speechSynthesis.cancel(); } catch (_) {}
+    }
   }
 
   // Schedule playback of a Morse symbol string ("." and "-").
@@ -83,38 +87,54 @@ MT.Audio = (function () {
     });
   }
 
-  // After-character pause. Honors Farnsworth: stretches the "between characters"
-  // gap so the effective overall WPM matches effWpm even though dits/dahs are at charWpm.
-  // Standard inter-character gap is 3 units at char speed; Farnsworth scales it up.
-  function interCharPause() {
+  // AIDEV-NOTE: Farnsworth in single-character training.
+  // Real Farnsworth stretches inter-character/word gaps so effective WPM is lower
+  // than character WPM. With one char per prompt there is no audible inter-char gap,
+  // so we instead surface Farnsworth as a post-playback "think pause" — the time the
+  // missing inter-character gap would have taken at the effective WPM. Returns ms.
+  function farnsworthGapMs() {
     const charUnit = unitMs(charWpm);
     const effUnit = unitMs(effWpm);
-    // PARIS analysis: a single character contributes ~10 units intra-char+gap at char speed,
-    // but at effective speed it should be 1200/effWpm * 10. Add the difference as extra gap.
-    // Simpler approximation: standard 3-unit gap, plus extra to hit effective WPM.
-    const standardGap = 3 * charUnit;
-    if (effWpm >= charWpm) return new Promise((r) => setTimeout(r, standardGap));
-    const extra = (effUnit - charUnit) * 19; // matches common Farnsworth formulas
-    const total = Math.max(standardGap, standardGap + extra);
-    return new Promise((r) => setTimeout(r, total));
+    const standardGap = 3 * charUnit;          // standard inter-character gap
+    if (effWpm >= charWpm) return standardGap;
+    // Common Farnsworth formula: extra delay distributed across the 19 "missing" units
+    // implied by the gap between actual char speed and effective speed.
+    const extra = (effUnit - charUnit) * 19;
+    return Math.max(standardGap, standardGap + extra);
+  }
+
+  // Returns a promise that resolves after the Farnsworth pause; cancelable via stop().
+  function farnsworthPause() {
+    const ms = farnsworthGapMs();
+    return new Promise((resolve) => {
+      const id = setTimeout(resolve, ms);
+      scheduledTimers.push(id);
+    });
   }
 
   function speakLetter(letter) {
     if (!("speechSynthesis" in window)) return Promise.resolve();
     return new Promise((resolve) => {
+      let safety = null;
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        if (safety !== null) clearTimeout(safety);
+        resolve();
+      };
       try {
         const u = new SpeechSynthesisUtterance(String(letter));
         u.rate = 0.9;
         u.pitch = 1.0;
         u.volume = 1.0;
-        u.onend = () => resolve();
-        u.onerror = () => resolve();
+        u.onend = finish;
+        u.onerror = finish;
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(u);
-        // safety timeout in case onend never fires
-        setTimeout(resolve, 2500);
+        safety = setTimeout(finish, 2500);
       } catch (e) {
-        resolve();
+        finish();
       }
     });
   }
@@ -139,7 +159,7 @@ MT.Audio = (function () {
   }
 
   return {
-    ensureCtx, playMorse, speakLetter, stop, interCharPause, blip,
+    ensureCtx, playMorse, speakLetter, stop, farnsworthPause, farnsworthGapMs, blip,
     setWPM, setFarnsworth, setFrequency,
     getCharWpm, getEffWpm,
   };

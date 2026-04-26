@@ -60,7 +60,7 @@
         <div class="setting listen-pause-row">
           <div class="row">
             <span class="label-line">
-              <label for="listenPause">Pause between letters</label>
+              <label for="listenPauseMs">Pause between letters</label>
               <span class="info-wrap">
                 <button type="button" class="info-btn" aria-label="More info about listen pause">i</button>
                 <span id="info-listen-pause" class="info-tip" role="tooltip">Silence between consecutive letters in Listen mode. Independent of the Effective&nbsp;WPM (Farnsworth) setting used in Practice.</span>
@@ -68,7 +68,7 @@
             </span>
             <strong id="listenPauseVal">1.0 s</strong>
           </div>
-          <input type="range" id="listenPause" aria-describedby="info-listen-pause" min="250" max="5000" step="250" value="1000" />
+          <input type="range" id="listenPauseMs" aria-describedby="info-listen-pause" min="250" max="5000" step="250" value="1000" />
         </div>
         <p class="hint">
           Listen does not change practice progress.

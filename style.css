@@ -142,8 +142,9 @@ main {
 }
 
 /* Listen-panel source-select row. Lays out label + select + info button on
-   a single line, distinct from the centered prompt above. */
-.listen-source-row {
+   a single line, overriding the parent `.setting`'s column direction.
+   Selector uses both classes so its specificity beats `#panelListen .setting`. */
+#panelListen .setting.listen-source-row {
   flex-direction: row;
   align-items: center;
   justify-content: center;
@@ -322,7 +323,8 @@ kbd {
 }
 
 /* Settings */
-.settings .setting {
+.settings .setting,
+#panelListen .setting {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -330,21 +332,25 @@ kbd {
   color: var(--muted);
 }
 
-.settings .setting .row {
+.settings .setting .row,
+#panelListen .setting .row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
 
-.settings .setting .row strong { color: var(--fg); font-weight: 600; }
+.settings .setting .row strong,
+#panelListen .setting .row strong { color: var(--fg); font-weight: 600; }
 
-.settings .setting .label-line {
+.settings .setting .label-line,
+#panelListen .setting .label-line {
   display: inline-flex;
   align-items: baseline;
   gap: 0.1rem;
 }
 
-.settings .setting label { cursor: pointer; }
+.settings .setting label,
+#panelListen .setting label { cursor: pointer; }
 
 .settings .setting-checkbox {
   flex-direction: row;
@@ -353,10 +359,12 @@ kbd {
   color: var(--fg);
 }
 
-.settings input[type="range"] { width: 100%; accent-color: var(--accent); }
+.settings input[type="range"],
+#panelListen input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .settings select,
-.settings input[type="text"] {
+.settings input[type="text"],
+#panelListen select {
   background: var(--bg);
   color: var(--fg);
   border: 1px solid var(--border);

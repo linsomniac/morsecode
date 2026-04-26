@@ -68,7 +68,7 @@ window.MT = window.MT || {};
     $("#ditKey").value = s.ditKey;
     $("#dahKey").value = s.dahKey;
     $("#listenSource").value = s.listenSource;
-    $("#listenPause").value = s.listenPauseMs;
+    $("#listenPauseMs").value = s.listenPauseMs;
     $("#listenPauseVal").textContent = formatPauseLabel(s.listenPauseMs);
   }
 
@@ -192,7 +192,7 @@ window.MT = window.MT || {};
       state.settings.listenSource = e.target.value === "review" ? "review" : "srs";
       MT.SRS.save();
     });
-    $("#listenPause").addEventListener("input", (e) => {
+    $("#listenPauseMs").addEventListener("input", (e) => {
       const v = parseInt(e.target.value, 10);
       state.settings.listenPauseMs = v;
       $("#listenPauseVal").textContent = formatPauseLabel(v);
@@ -265,6 +265,10 @@ window.MT = window.MT || {};
     const isPractice = which === "practice";
     const tabPractice = $("#tabPractice");
     const tabListen = $("#tabListen");
+    // Re-clicking the already-active tab is a no-op. Otherwise we'd
+    // resetPractice's prompt/buffer (or stop Listen audio) for nothing.
+    const currentlyOn = tabPractice.getAttribute("aria-selected") === "true" ? "practice" : "listen";
+    if (currentlyOn === which) return;
     tabPractice.setAttribute("aria-selected", isPractice ? "true" : "false");
     tabListen.setAttribute("aria-selected", isPractice ? "false" : "true");
     tabPractice.tabIndex = isPractice ? 0 : -1;

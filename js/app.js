@@ -192,12 +192,19 @@ window.MT = window.MT || {};
       state.settings.listenSource = e.target.value === "review" ? "review" : "srs";
       MT.SRS.save();
     });
-    $("#listenPauseMs").addEventListener("input", (e) => {
+    // Bind both `input` (live drag) and `change` (commit-on-release) so a slider
+    // works on touch devices / browsers that don't fire `input` reliably during
+    // a drag — without this the displayed value can appear "stuck" at the
+    // initial value while the slider thumb moves.
+    const onListenPauseChange = (e) => {
       const v = parseInt(e.target.value, 10);
+      if (!Number.isFinite(v)) return;
       state.settings.listenPauseMs = v;
       $("#listenPauseVal").textContent = formatPauseLabel(v);
       MT.SRS.save();
-    });
+    };
+    $("#listenPauseMs").addEventListener("input", onListenPauseChange);
+    $("#listenPauseMs").addEventListener("change", onListenPauseChange);
 
     // Tab strip — click activates, ARIA roving tabindex w/ arrow keys
     $("#tabPractice").addEventListener("click", () => showPanel("practice"));

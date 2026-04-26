@@ -144,6 +144,42 @@ main {
 /* Listen-panel source-select row. Lays out label + select + info button on
    a single line, overriding the parent `.setting`'s column direction.
    Selector uses both classes so its specificity beats `#panelListen .setting`. */
+/* Keying-mode transcript: monospace running text of decoded letters,
+   built up via textContent only (no innerHTML, even though letters are
+   bounded — keep the same trust model as the progress table). */
+.keying-transcript {
+  font-family: ui-monospace, "JetBrains Mono", "SF Mono", monospace;
+  font-size: 1.6rem;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  min-height: 4.5rem;
+  margin-bottom: 0.6rem;
+  padding: 0.7rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel-2);
+  color: var(--fg);
+  word-break: break-all;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+.keying-transcript:empty::before {
+  content: "—";
+  color: var(--muted);
+  font-style: italic;
+  letter-spacing: 0;
+}
+
+#panelKeying .morse-visual {
+  margin-top: 0.2rem;
+  min-height: 2.4rem;
+}
+
+#panelKeying .hint {
+  margin-top: 1rem;
+}
+
 #panelListen .setting.listen-source-row {
   flex-direction: row;
   align-items: center;

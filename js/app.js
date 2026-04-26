@@ -157,20 +157,23 @@ window.MT = window.MT || {};
         onUp();
       });
     }
-    bindPaddle("ditButton",
-      () => {
-        if (state.settings.iambicMode) { ditDown = true; startKeyerIfNeeded(); }
-        else { appendSymbol("."); }
-      },
-      () => { ditDown = false; },
-    );
-    bindPaddle("dahButton",
-      () => {
-        if (state.settings.iambicMode) { dahDown = true; startKeyerIfNeeded(); }
-        else { appendSymbol("-"); }
-      },
-      () => { dahDown = false; },
-    );
+    const ditDownHandler = () => {
+      if (state.settings.iambicMode) { ditDown = true; startKeyerIfNeeded(); }
+      else { appendSymbol("."); }
+    };
+    const ditUpHandler = () => { ditDown = false; };
+    const dahDownHandler = () => {
+      if (state.settings.iambicMode) { dahDown = true; startKeyerIfNeeded(); }
+      else { appendSymbol("-"); }
+    };
+    const dahUpHandler = () => { dahDown = false; };
+
+    bindPaddle("ditButton", ditDownHandler, ditUpHandler);
+    bindPaddle("dahButton", dahDownHandler, dahUpHandler);
+    // Keying-mode paddles share the same handlers — input dispatch happens
+    // downstream in appendSymbol() based on which panel is visible.
+    bindPaddle("keyingDitButton", ditDownHandler, ditUpHandler);
+    bindPaddle("keyingDahButton", dahDownHandler, dahUpHandler);
     $("#reset").addEventListener("click", () => {
       if (confirm("Reset all progress? This wipes saved stats and active characters.")) {
         state = MT.SRS.reset();
@@ -178,10 +181,15 @@ window.MT = window.MT || {};
         applySettingsToAudio();
         renderProgressTable();
         // showPanel("practice") restarts the prompt cycle AND clears any
-        // listen-mode state — important if the user is on the Listen tab when
-        // they reset, otherwise practice would silently restart behind a
-        // hidden panel and listen's stale lastChar would survive the wipe.
+        // listen-mode or keying-mode state — important if the user is on a
+        // non-Practice tab when they reset, otherwise practice would silently
+        // restart behind a hidden panel.
         showPanel("practice");
+        // Keying transcript is session-only (not persisted), but "Reset all
+        // progress" should match the user's mental model of a clean slate.
+        MT.Keying.clear();
+        $("#keyingTranscript").textContent = "";
+        $("#keyingMorseLive").textContent = "";
       }
     });
 
@@ -207,11 +215,18 @@ window.MT = window.MT || {};
     $("#listenPauseMs").addEventListener("input", onListenPauseChange);
     $("#listenPauseMs").addEventListener("change", onListenPauseChange);
 
+    // Keying-mode controls
+    $("#keyingClear").addEventListener("click", () => {
+      $("#keyingTranscript").textContent = "";
+      $("#keyingMorseLive").textContent = "";
+      MT.Keying.clear();
+    });
+
     // Tab strip — click activates, ARIA roving tabindex w/ arrow keys
     $("#tabPractice").addEventListener("click", () => showPanel("practice"));
     $("#tabListen").addEventListener("click", () => showPanel("listen"));
-    bindTabKeyNav($("#tabPractice"), $("#tabListen"), "listen");
-    bindTabKeyNav($("#tabListen"), $("#tabPractice"), "practice");
+    $("#tabKeying").addEventListener("click", () => showPanel("keying"));
+    bindTabKeyNav();
 
     // Wire MT.Listen → DOM. onPrompt is called on every iteration; onStateChange
     // toggles the Start/Pause button visibility.
@@ -220,6 +235,22 @@ window.MT = window.MT || {};
       onStateChange: (running) => {
         $("#listenPlay").hidden = running;
         $("#listenPause").hidden = !running;
+      },
+    });
+
+    // Wire MT.Keying → DOM. Transcript and live in-progress display are both
+    // built via textContent only — letters are bounded to the MT.MORSE keys
+    // plus "?", but stay within the same untrusted-content discipline used
+    // elsewhere in the app.
+    MT.Keying.setHandlers({
+      onSymbol: (buf) => {
+        $("#keyingMorseLive").textContent = MT.formatMorseVisual(buf);
+      },
+      onCharComplete: (ch) => {
+        $("#keyingTranscript").textContent += ch;
+      },
+      onSpace: () => {
+        $("#keyingTranscript").textContent += " ";
       },
     });
 
@@ -258,40 +289,60 @@ window.MT = window.MT || {};
 
   // ---- mode tabs ----------------------------------------------------------
 
-  // Switch between the Practice and Listen panels.
+  // AIDEV-NOTE: Modes are an ordered list so adding/removing a tab is
+  // mechanical. Tab strip uses ARIA roving tabindex; only the active tab
+  // is in the focus order.
+  const MODES = [
+    { name: "practice", tab: "#tabPractice", panel: "#panelPractice" },
+    { name: "listen",   tab: "#tabListen",   panel: "#panelListen"   },
+    { name: "keying",   tab: "#tabKeying",   panel: "#panelKeying"   },
+  ];
+
+  function currentMode() {
+    for (const m of MODES) {
+      if ($(m.tab).getAttribute("aria-selected") === "true") return m.name;
+    }
+    return "practice";
+  }
+
+  // Switch between Practice / Listen / Keying.
   //
-  // AIDEV-NOTE: Switching to Listen MUST bump promptToken — Practice's
+  // AIDEV-NOTE: Switching away from Practice MUST bump promptToken —
   // nextPrompt() may be awaiting TTS or playMorse, and MT.Audio.stop()
   // resolves those Promises via onerror. Without invalidating the token,
   // Practice's post-await guards (myToken !== promptToken) pass and the
-  // stale prompt continues to the next step, racing Listen.
+  // stale prompt continues to the next step, racing the new mode.
   // Tab buttons themselves are interactive — leaving focus on a tab after
-  // switch-to-Practice means the global keydown handler treats paddle keys
-  // as belonging to an interactive target and suppresses them, so we move
-  // focus off the tab before unlocking practice input.
+  // switch-to-Practice or switch-to-Keying means the global keydown
+  // handler treats paddle keys as belonging to an interactive target and
+  // suppresses them, so we move focus off the tab before unlocking input.
   function showPanel(which) {
-    const isPractice = which === "practice";
-    const tabPractice = $("#tabPractice");
-    const tabListen = $("#tabListen");
-    // Re-clicking the already-active tab is a no-op. Otherwise we'd
-    // resetPractice's prompt/buffer (or stop Listen audio) for nothing.
-    const currentlyOn = tabPractice.getAttribute("aria-selected") === "true" ? "practice" : "listen";
-    if (currentlyOn === which) return;
-    tabPractice.setAttribute("aria-selected", isPractice ? "true" : "false");
-    tabListen.setAttribute("aria-selected", isPractice ? "false" : "true");
-    tabPractice.tabIndex = isPractice ? 0 : -1;
-    tabListen.tabIndex = isPractice ? -1 : 0;
-    $("#panelPractice").hidden = !isPractice;
-    $("#panelListen").hidden = isPractice;
+    const from = currentMode();
+    if (from === which) return;
 
-    if (isPractice) {
-      MT.Listen.stop();
-      // Only blur if focus is sitting on a tab button — otherwise we'd be
-      // taking focus away from something the user might care about.
+    for (const m of MODES) {
+      const isActive = m.name === which;
+      const tabEl = $(m.tab);
+      tabEl.setAttribute("aria-selected", isActive ? "true" : "false");
+      tabEl.tabIndex = isActive ? 0 : -1;
+      $(m.panel).hidden = !isActive;
+    }
+
+    // Leave the previous mode (cleanup specific to from-mode).
+    if (from === "listen") MT.Listen.stop();
+    if (from === "keying") MT.Keying.stop();
+
+    const blurTabIfFocused = () => {
       const ae = document.activeElement;
-      if (ae === tabPractice || ae === tabListen) ae.blur();
+      for (const m of MODES) {
+        if (ae === $(m.tab)) { ae.blur(); return; }
+      }
+    };
+
+    if (which === "practice") {
+      blurTabIfFocused();
       if (started) nextPrompt();
-    } else {
+    } else if (which === "listen") {
       promptToken++;
       MT.Audio.stop();
       resetKeyer();
@@ -301,20 +352,34 @@ window.MT = window.MT || {};
       // arriving via arrow-key tab nav, focus is already on #tabListen — the
       // explicit focus shift here mirrors the click case.
       $("#listenPlay").focus();
+    } else if (which === "keying") {
+      promptToken++;
+      MT.Audio.stop();
+      clearAdvanceTimer();
+      resetKeyer();
+      inputLocked = false;             // dit/dah keys work immediately
+      MT.Keying.start();
+      blurTabIfFocused();
     }
   }
 
-  // ARIA APG tablist: ArrowLeft/Right (and Home/End for a 2-tab strip,
-  // equivalent to L/R) move focus to the sibling tab and activate it.
-  function bindTabKeyNav(btn, otherBtn, otherWhich) {
-    btn.addEventListener("keydown", (e) => {
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
-          e.key === "Home" || e.key === "End") {
+  // ARIA APG tablist: ArrowLeft/Right cycle focus through the tabs (with
+  // wrap); Home/End jump to first/last. Each cycle activates the new tab.
+  function bindTabKeyNav() {
+    for (let i = 0; i < MODES.length; i++) {
+      const tabEl = $(MODES[i].tab);
+      tabEl.addEventListener("keydown", (e) => {
+        let target = -1;
+        if (e.key === "ArrowLeft")       target = (i - 1 + MODES.length) % MODES.length;
+        else if (e.key === "ArrowRight") target = (i + 1) % MODES.length;
+        else if (e.key === "Home")       target = 0;
+        else if (e.key === "End")        target = MODES.length - 1;
+        else return;
         e.preventDefault();
-        otherBtn.focus();
-        showPanel(otherWhich);
-      }
-    });
+        $(MODES[target].tab).focus();
+        showPanel(MODES[target].name);
+      });
+    }
   }
 
   // Render a Listen prompt: letter + (optional) morse-visual + aid status.
@@ -351,6 +416,12 @@ window.MT = window.MT || {};
   function bindKeys() {
     document.addEventListener("keydown", (e) => {
       if (isInteractiveTarget(e.target)) return;
+
+      // Don't intercept browser/system shortcuts. Cmd/Ctrl+R is reload,
+      // Cmd+Shift+R is hard-reload, Cmd+N is new window, etc. — without
+      // this check our R/N handlers would eat them. Shift alone is fine
+      // (it's how we get capital letters); only Ctrl/Meta/Alt matter.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       // start overlay: any key dismisses it
       if (!started) {
@@ -398,6 +469,15 @@ window.MT = window.MT || {};
         } else {
           appendSymbol("-");
         }
+      } else if (!$("#panelKeying").hidden) {
+        // Keying mode: dit/dah are the only meaningful inputs (handled above).
+        // Suppress the practice-only shortcuts so they don't trigger browser
+        // defaults like Backspace navigating back.
+        if (key === "Backspace" || key === "Enter" || key === " " ||
+            key === "r" || key === "R" || key === "n" || key === "N") {
+          e.preventDefault();
+        }
+        return;
       } else if (key === "Backspace") {
         e.preventDefault();
         if (!inputLocked && userBuffer.length) {
@@ -485,6 +565,14 @@ window.MT = window.MT || {};
   }
 
   function appendSymbol(sym) {
+    // AIDEV-NOTE: Keying-mode dispatch must precede the practice-mode
+    // currentMorse guard below — keying has no target prompt and would
+    // otherwise be silently dropped here.
+    if (!$("#panelKeying").hidden) {
+      MT.Audio.playSymbol(sym);
+      MT.Keying.recordSymbol(sym);
+      return;
+    }
     if (!currentMorse) return;
     MT.Audio.playSymbol(sym);
     userBuffer += sym;

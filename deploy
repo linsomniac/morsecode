@@ -1,1 +1,1 @@
-rsync -av . root@dreaming:/www/morsecode.linsomniac/site/
+rsync -av . root@dreaming:/www/morsetrainer.linsomniac/site/

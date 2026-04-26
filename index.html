@@ -17,6 +17,7 @@
       <div class="tabs" role="tablist" aria-label="Trainer mode">
         <button role="tab" id="tabPractice" type="button" aria-selected="true" aria-controls="panelPractice" tabindex="0">Practice</button>
         <button role="tab" id="tabListen" type="button" aria-selected="false" aria-controls="panelListen" tabindex="-1">Listen</button>
+        <button role="tab" id="tabKeying" type="button" aria-selected="false" aria-controls="panelKeying" tabindex="-1">Keying</button>
       </div>
 
       <section id="panelPractice" class="prompt-area" role="tabpanel" aria-labelledby="tabPractice">
@@ -73,6 +74,26 @@
         <p class="hint">
           Listen does not change practice progress.
           <kbd>Space</kbd> toggles play/pause.
+        </p>
+      </section>
+
+      <section id="panelKeying" class="prompt-area" role="tabpanel" aria-labelledby="tabKeying" hidden>
+        <div class="keying-transcript" id="keyingTranscript" aria-live="polite" aria-label="Decoded transcript"></div>
+        <div class="morse-visual" id="keyingMorseLive"></div>
+        <div class="paddles" aria-label="Touch paddles">
+          <button id="keyingDitButton" class="paddle" type="button" aria-label="Send dit">·</button>
+          <button id="keyingDahButton" class="paddle" type="button" aria-label="Send dah">−</button>
+        </div>
+        <div class="controls">
+          <button id="keyingClear" type="button" title="Clear transcript">⌫ Clear</button>
+        </div>
+        <p class="hint">
+          Key dits and dahs — letters appear after a short pause; longer pauses insert a space.
+          <kbd>[</kbd> dit · <kbd>]</kbd> dah
+          <span class="info-wrap">
+            <button type="button" class="info-btn" aria-label="More info about keying mode">i</button>
+            <span id="info-keying" class="info-tip" role="tooltip">Letters commit after about 3 dit-lengths of silence; word spaces appear after about 7 dit-lengths. Thresholds scale with the WPM setting (with a small floor so high WPM stays comfortable). Unrecognized patterns show as&nbsp;<kbd>?</kbd>. Keying does not change practice progress.</span>
+          </span>
         </p>
       </section>
     </div>
@@ -227,6 +248,7 @@
   <script src="js/audio.js"></script>
   <script src="js/srs.js"></script>
   <script src="js/listen.js"></script>
+  <script src="js/keying.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

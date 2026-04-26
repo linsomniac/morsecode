@@ -199,6 +199,7 @@ window.MT = window.MT || {};
     const onListenPauseChange = (e) => {
       const v = parseInt(e.target.value, 10);
       if (!Number.isFinite(v)) return;
+      if (state.settings.listenPauseMs === v) return;   // skip the trailing change-after-input no-op
       state.settings.listenPauseMs = v;
       $("#listenPauseVal").textContent = formatPauseLabel(v);
       MT.SRS.save();

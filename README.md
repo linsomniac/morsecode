@@ -30,6 +30,10 @@ often than mastered ones.
 - **Multiple input methods.** Keyboard (`[` dit, `]` dah by default),
   on-screen touch paddles, and USB Morse keys that emulate a keyboard
   (configurable dit/dah characters).
+- **Iambic keyer.** Holding a paddle generates dits or dahs at the
+  trainer's WPM (the OS auto-repeat is suppressed); squeezing both
+  paddles alternates dit-dah. A short tap still emits a single
+  element. Works the same on keyboard and touch paddles.
 - **Progress table.** Per-character trial count, recent accuracy,
   lifetime accuracy, and current aid status.
 - **Local persistence.** Settings, progress, and active character set
@@ -49,8 +53,9 @@ browser/OS voices.
 
 | Key | Action |
 | --- | --- |
-| `[` | Send dit (`.`) |
-| `]` | Send dah (`-`) |
+| `[` | Send dit (`.`) — hold to repeat at WPM |
+| `]` | Send dah (`-`) — hold to repeat at WPM |
+| `[` + `]` | Squeeze (iambic) — alternates dit-dah-dit-dah |
 | `Space` / `Enter` | Submit the current Morse buffer |
 | `Backspace` | Erase last symbol |
 | `R` | Replay the current Morse |

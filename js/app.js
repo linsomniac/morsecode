@@ -15,6 +15,15 @@ window.MT = window.MT || {};
   let promptToken = 0;          // increments to invalidate stale async prompts
   let advanceTimer = null;      // setTimeout id for auto-advance after evaluate()
 
+  // AIDEV-NOTE: Iambic keyer state. Holding a paddle generates dits/dahs at the
+  // trainer's WPM (not the OS typematic rate); squeezing both alternates. See
+  // CLAUDE.md → "Iambic keyer" for the design rationale and Mode A semantics.
+  let ditDown = false;
+  let dahDown = false;
+  let lastElement = null;       // "." | "-" | null — last element emitted, for squeeze alternation
+  let keyerRunning = false;
+  let keyerTimer = null;        // setTimeout id for the next keyer decision
+
   // ---- init ---------------------------------------------------------------
 
   function init() {
@@ -55,6 +64,7 @@ window.MT = window.MT || {};
     $("#speakLetter").checked = !!s.speakLetter;
     $("#audioAid").value = s.audioAid;
     $("#visualAid").value = s.visualAid;
+    $("#iambic").checked = !!s.iambicMode;
     $("#ditKey").value = s.ditKey;
     $("#dahKey").value = s.dahKey;
   }
@@ -99,16 +109,26 @@ window.MT = window.MT || {};
     $("#visualAid").addEventListener("change", (e) => {
       state.settings.visualAid = e.target.value; MT.SRS.save(); refreshAidStatus();
     });
+    $("#iambic").addEventListener("change", (e) => {
+      state.settings.iambicMode = e.target.checked;
+      MT.SRS.save();
+      // Any in-flight keyer state belongs to the prior mode; clear it so the new
+      // mode starts from a clean slate.
+      resetKeyer();
+    });
     $("#ditKey").addEventListener("change", (e) => updateKeyBinding("ditKey", e.target.value));
     $("#dahKey").addEventListener("change", (e) => updateKeyBinding("dahKey", e.target.value));
 
     $("#replay").addEventListener("click", triggerReplay);
     $("#skip").addEventListener("click", () => nextPrompt());
 
-    // Touch paddles. Listen on pointerdown so taps are responsive on mobile;
-    // also accept click for keyboard activation. preventDefault on pointerdown
-    // suppresses the synthesized click that would otherwise double-fire.
-    function bindPaddle(id, sym) {
+    // Touch paddles drive the same iambic keyer as the keyboard. pointerdown/up
+    // toggle the corresponding paddle flag; setPointerCapture keeps pointerup
+    // firing even if the finger slides off the button. The click handler covers
+    // keyboard activation (Tab + Space/Enter on the focused paddle): a
+    // synchronous down→up emits exactly one element via the keyer's first
+    // synchronous tick.
+    function bindPaddle(id, onDown, onUp) {
       const btn = $("#" + id);
       if (!btn) return;
       let handled = false;
@@ -116,17 +136,33 @@ window.MT = window.MT || {};
         if (!started || inputLocked) return;
         e.preventDefault();
         handled = true;
-        appendSymbol(sym);
+        try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+        onDown();
         btn.blur();   // don't leave focus on the paddle so keyboard play continues to work
       });
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("pointerup", () => { onUp(); });
+      btn.addEventListener("pointercancel", () => { onUp(); });
+      btn.addEventListener("click", () => {
         if (handled) { handled = false; return; }
         if (!started || inputLocked) return;
-        appendSymbol(sym);
+        onDown();
+        onUp();
       });
     }
-    bindPaddle("ditButton", ".");
-    bindPaddle("dahButton", "-");
+    bindPaddle("ditButton",
+      () => {
+        if (state.settings.iambicMode) { ditDown = true; startKeyerIfNeeded(); }
+        else { appendSymbol("."); }
+      },
+      () => { ditDown = false; },
+    );
+    bindPaddle("dahButton",
+      () => {
+        if (state.settings.iambicMode) { dahDown = true; startKeyerIfNeeded(); }
+        else { appendSymbol("-"); }
+      },
+      () => { dahDown = false; },
+    );
     $("#reset").addEventListener("click", () => {
       if (confirm("Reset all progress? This wipes saved stats and active characters.")) {
         state = MT.SRS.reset();
@@ -146,6 +182,10 @@ window.MT = window.MT || {};
       state.settings[field] = final;
       $("#" + field).value = final;
       MT.SRS.save();
+      // If a paddle is held when its binding changes, the future keyup will be
+      // for the *old* key and won't match the new ditKey/dahKey, leaving the
+      // flag stuck. Reset to keep state consistent with the new binding.
+      if (final !== previous) resetKeyer();
       const status = $("#keyBindingStatus");
       if (status) {
         if (!valid && raw) {
@@ -199,10 +239,24 @@ window.MT = window.MT || {};
 
       if (key === dit) {
         e.preventDefault();
-        if (!inputLocked) appendSymbol(".");
+        if (e.repeat) return;        // OS auto-repeat is suppressed regardless of iambic mode
+        if (inputLocked) return;
+        if (state.settings.iambicMode) {
+          ditDown = true;
+          startKeyerIfNeeded();
+        } else {
+          appendSymbol(".");          // straight-key style: one element per press
+        }
       } else if (key === dah) {
         e.preventDefault();
-        if (!inputLocked) appendSymbol("-");
+        if (e.repeat) return;
+        if (inputLocked) return;
+        if (state.settings.iambicMode) {
+          dahDown = true;
+          startKeyerIfNeeded();
+        } else {
+          appendSymbol("-");
+        }
       } else if (key === "Backspace") {
         e.preventDefault();
         if (!inputLocked && userBuffer.length) {
@@ -220,6 +274,73 @@ window.MT = window.MT || {};
         nextPrompt();
       }
     });
+
+    // Track paddle release for the iambic keyer. Not gated on isInteractiveTarget
+    // or `started` — keyup is purely a "sync state to physical reality" hook,
+    // and clearing an already-false flag is harmless.
+    document.addEventListener("keyup", (e) => {
+      if (e.key === state.settings.ditKey) {
+        ditDown = false;
+      } else if (e.key === state.settings.dahKey) {
+        dahDown = false;
+      }
+    });
+  }
+
+  // ---- iambic keyer -------------------------------------------------------
+
+  // Mode A: at each decision point, look at current paddle state. If both held,
+  // alternate from lastElement; if one held, repeat that paddle; if neither,
+  // exit. The first element fires synchronously on initial press for
+  // tap-responsiveness; subsequent elements are paced by the trainer's WPM.
+  function scheduleNextElement() {
+    if (inputLocked) { keyerRunning = false; return; }
+
+    let next;
+    if (ditDown && dahDown) {
+      next = lastElement === "." ? "-" : ".";
+    } else if (ditDown) {
+      next = ".";
+    } else if (dahDown) {
+      next = "-";
+    } else {
+      keyerRunning = false;
+      return;
+    }
+
+    keyerRunning = true;
+    lastElement = next;
+    appendSymbol(next);
+
+    // appendSymbol may trigger evaluate() (buffer match or divergence), which
+    // calls resetKeyer() and sets inputLocked. In that case, bail out without
+    // scheduling another tick.
+    if (inputLocked) return;
+
+    const unit = 1200 / MT.Audio.getCharWpm();
+    const elementMs = next === "." ? unit : 3 * unit;
+    const gap = unit;
+    keyerTimer = setTimeout(() => {
+      keyerTimer = null;
+      scheduleNextElement();
+    }, elementMs + gap);
+  }
+
+  function startKeyerIfNeeded() {
+    if (keyerRunning) return;
+    if (inputLocked) return;
+    scheduleNextElement();
+  }
+
+  function resetKeyer() {
+    if (keyerTimer !== null) {
+      clearTimeout(keyerTimer);
+      keyerTimer = null;
+    }
+    keyerRunning = false;
+    ditDown = false;
+    dahDown = false;
+    lastElement = null;
   }
 
   function appendSymbol(sym) {
@@ -251,6 +372,7 @@ window.MT = window.MT || {};
     const myToken = promptToken;
     clearAdvanceTimer();
     MT.Audio.stop();
+    resetKeyer();
     inputLocked = true;
     evaluating = false;
     userBuffer = "";
@@ -329,8 +451,11 @@ window.MT = window.MT || {};
   // Single entry point for "replay the current prompt". If a post-evaluate
   // auto-advance is pending, the user is staying with the current prompt to
   // hear it again — cancel the auto-advance so the replay isn't cut off.
+  // resetKeyer() so any in-flight keying doesn't leak its sidetone into the
+  // replay; the user must release-and-repress to resume keying afterwards.
   function triggerReplay() {
     if (advanceTimer !== null) clearAdvanceTimer();
+    resetKeyer();
     playCurrent();
   }
 
@@ -346,6 +471,7 @@ window.MT = window.MT || {};
     if (evaluating) return;
     evaluating = true;
     inputLocked = true;
+    resetKeyer();
     const correct = userBuffer === currentMorse;
     const elapsed = performance.now() - promptStartTime;
     MT.SRS.recordAttempt(currentChar, correct, elapsed);

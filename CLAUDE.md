@@ -91,6 +91,58 @@ replaying. If you wire up another way to replay (touch gesture,
 external trigger), route it through `triggerReplay`, not `playCurrent`,
 or the auto-advance can cut off the replay.
 
+### Iambic keyer (WPM-locked, Mode A)
+
+Holding a paddle key generates dits or dahs at the trainer's *own* WPM,
+not whatever the OS typematic delay/rate would do. Squeezing both
+paddles alternates. This is implemented as a small state machine in
+`js/app.js` (`scheduleNextElement`, `startKeyerIfNeeded`, `resetKeyer`)
+sitting on top of `appendSymbol` — every emitted element still goes
+through the same buffer/eval path as a tap.
+
+Why we don't just trust `keydown`:
+
+- OS typematic is ~500 ms initial delay then ~30 ms repeat. Neither
+  matches WPM, and a stuck-down key dumps a flurry of dits the moment
+  the typematic threshold is crossed.
+- `keydown` events with `event.repeat === true` are dropped. The keyer
+  paces its own elements via `setTimeout(elementMs + gap)` where
+  `elementMs` and `gap` come from `1200 / MT.Audio.getCharWpm()`.
+
+Mode A semantics (no Mode B "memory"):
+
+- At each timer tick, look at current `ditDown` / `dahDown`. If both
+  held, alternate from `lastElement`; if one held, repeat that paddle;
+  if neither, exit.
+- Tap-and-release within one element duration: emits exactly one
+  element (the synchronous first tick), then exits.
+- Sending `W` (`.--`): hold dit, press dah while holding, release dit
+  during the dah, release dah after the second dah. The release-dit
+  step lets the keyer see only-dah-held at the next decision and stop
+  alternating.
+
+Lock-transition reset:
+
+`resetKeyer()` clears the timer AND resets `ditDown` / `dahDown` /
+`lastElement`. It's called from `nextPrompt`, `evaluate`, and
+`triggerReplay`. Why also reset paddle flags (not just the timer)? If
+the user is physically holding a paddle when a prompt boundary lands,
+we don't want to silently auto-fill the next prompt — fresh keydown
+required. This matches the pre-iambic contract (where holding through
+a prompt boundary also did nothing useful, since OS typematic doesn't
+carry across either).
+
+If you add a new way to lock input (a new pause overlay, etc.),
+remember to call `resetKeyer()` at the lock transition or you'll get a
+stuck timer that fires sidetone into a locked UI.
+
+The `appendSymbol → evaluate → resetKeyer` re-entry path is real:
+`scheduleNextElement` calls `appendSymbol`, which can call `evaluate`,
+which calls `resetKeyer`. After that returns, `scheduleNextElement`
+checks `inputLocked` and bails before scheduling the next tick. Don't
+remove that check — without it you'll schedule a timer that
+immediately exits, harmless but ugly.
+
 ### Wrong-answer rendering reuses `#morseVisual`
 
 When the user gets it wrong, `showFeedback(false)` puts the correct
@@ -110,10 +162,15 @@ aria-live split.
   `isInteractiveTarget(e.target)` is true — buttons, summaries, inputs,
   selects, textareas, anchors, contenteditable. Without that exemption,
   pressing Space on a focused button would be eaten and the user
-  couldn't activate it. See the AIDEV-NOTE at `js/app.js:171`.
-- Touch paddles bind `pointerdown` for responsiveness *and* `click` for
-  keyboard-activated button semantics, with a `handled` flag to dedupe
-  the synthesized click after a pointerdown.
+  couldn't activate it. See the AIDEV-NOTE in `js/app.js`.
+- Both keyboard and touch paddles drive the **iambic keyer state
+  machine** (`ditDown` / `dahDown` flags + `scheduleNextElement`); they
+  do not call `appendSymbol` directly any more. See the "Iambic keyer"
+  subsection above.
+- Touch paddles use `pointerdown` + `pointerup` + `pointercancel` with
+  `setPointerCapture`, plus a `click` listener (gated by a `handled`
+  flag) so keyboard activation of a focused paddle button still emits
+  exactly one element via a synchronous down→up.
 - `appendSymbol()` evaluates as soon as the buffer either matches or
   diverges from the target. Auto-submit is the default; the
   `state.settings.autoSubmit` field exists in storage but isn't UI-bound
@@ -197,16 +254,18 @@ post-prompt input lockout.
 ## AIDEV anchors to know about
 
 ```
-js/app.js:171   isInteractiveTarget — why the global key handler exempts buttons/summaries
-js/app.js:392   renderProgressTable — why DOM APIs only, no innerHTML
-js/srs.js:49    makeProgressMap — why null-prototype map for untrusted data
-js/srs.js:209   replaceState — why mutate in place, not reassign
-js/audio.js:92  farnsworthGapMs — why Farnsworth lives in the inter-prompt gap
+js/app.js   ditDown/dahDown/keyer state — why a WPM-locked keyer instead of trusting OS keyrepeat
+js/app.js   isInteractiveTarget — why the global key handler exempts buttons/summaries
+js/app.js   renderProgressTable — why DOM APIs only, no innerHTML
+js/srs.js   makeProgressMap — why null-prototype map for untrusted data
+js/srs.js   replaceState — why mutate in place, not reassign
+js/audio.js farnsworthGapMs — why Farnsworth lives in the inter-prompt gap
 ```
 
 `grep -rn 'AIDEV-' js/ style.css` to see them all. Don't remove these
 without an explicit reason — they exist because something subtle was
-once wrong.
+once wrong. (Line numbers intentionally omitted — they drift; grep is
+the source of truth.)
 
 ## Things to ask before changing
 

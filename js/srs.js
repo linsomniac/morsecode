@@ -35,6 +35,7 @@ MT.SRS = (function () {
         visualAid: "adaptive",  // adaptive | always | never
         ditKey: "[",
         dahKey: "]",
+        iambicMode: true,
         autoSubmit: true,
       },
       progress: makeProgressMap(),
@@ -102,6 +103,7 @@ MT.SRS = (function () {
         out.dahKey = def.dahKey;
       }
       out.autoSubmit = raw.autoSubmit === undefined ? def.autoSubmit : !!raw.autoSubmit;
+      out.iambicMode = raw.iambicMode === undefined ? def.iambicMode : !!raw.iambicMode;
     }
     return out;
   }

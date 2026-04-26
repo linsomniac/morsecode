@@ -330,6 +330,97 @@ details[open] summary::before { content: "▾ "; }
 .muted { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
 .muted.bad { color: var(--bad); }
 
+/* Info icons + hover/focus tooltips for settings options. CSS-only — the
+   .info-tip is a sibling of .info-btn inside .info-wrap, revealed when the
+   wrap is hovered or the button is keyboard-focused. */
+.info-wrap {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-left: 0.4em;
+}
+
+.info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1em;
+  height: 1.1em;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--muted);
+  background: transparent;
+  color: var(--muted);
+  font-family: ui-monospace, "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  cursor: help;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.info-btn:hover,
+.info-btn:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+  outline: none;
+}
+
+.info-tip {
+  position: absolute;
+  top: 100%;
+  right: -0.4em;
+  width: max-content;
+  max-width: 18em;
+  margin-top: 0.25em;
+  padding: 0.55em 0.75em;
+  background: var(--panel-2);
+  color: var(--fg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 0.78rem;
+  font-weight: 400;
+  font-style: normal;
+  line-height: 1.45;
+  text-transform: none;
+  letter-spacing: normal;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s, visibility 0.12s;
+  z-index: 50;
+}
+
+/* Bridge the small visual gap so the cursor can transit from button to tip
+   without closing the tooltip. Sized to match the .info-tip's margin-top. */
+.info-wrap::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: -0.5em;
+  right: -0.5em;
+  height: 0.4em;
+  pointer-events: none;
+}
+.info-wrap:hover::after { pointer-events: auto; }
+
+.info-wrap:hover .info-tip,
+.info-btn:focus-visible + .info-tip {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Inside a tooltip, kbd should keep its style but match tooltip text size. */
+.info-tip kbd {
+  font-size: 0.75rem;
+  padding: 0 0.3rem;
+}
+
 /* Progress table */
 .progress table {
   width: 100%;

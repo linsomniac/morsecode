@@ -242,16 +242,23 @@ window.MT = window.MT || {};
     // built via textContent only — letters are bounded to the MT.MORSE keys
     // plus "?", but stay within the same untrusted-content discipline used
     // elsewhere in the app.
+    //
+    // Transcript is capped at TRANSCRIPT_MAX chars and trimmed from the front
+    // so a long session can't grow the DOM without bound. The element is an
+    // aria-live region (`additions text`), so trimming the prefix doesn't
+    // re-announce existing content — only the appended chars are spoken.
+    const TRANSCRIPT_MAX = 500;
+    function appendToTranscript(s) {
+      const t = $("#keyingTranscript");
+      const next = t.textContent + s;
+      t.textContent = next.length > TRANSCRIPT_MAX ? next.slice(-TRANSCRIPT_MAX) : next;
+    }
     MT.Keying.setHandlers({
       onSymbol: (buf) => {
         $("#keyingMorseLive").textContent = MT.formatMorseVisual(buf);
       },
-      onCharComplete: (ch) => {
-        $("#keyingTranscript").textContent += ch;
-      },
-      onSpace: () => {
-        $("#keyingTranscript").textContent += " ";
-      },
+      onCharComplete: (ch) => { appendToTranscript(ch); },
+      onSpace: () => { appendToTranscript(" "); },
     });
 
     function updateKeyBinding(field, raw) {
@@ -505,6 +512,20 @@ window.MT = window.MT || {};
       } else if (e.key === state.settings.dahKey) {
         dahDown = false;
       }
+    });
+
+    // AIDEV-NOTE: focus-loss kill switch. If the user switches tabs or alt-tabs
+    // mid-keypress, the matching keyup is often delivered to a different focus
+    // target and our ditDown/dahDown flags stay stuck. In Practice that's
+    // self-limiting (evaluate() locks input), but Keying mode has no natural
+    // stop and would emit sidetone forever, growing the transcript and burning
+    // CPU. Resetting the keyer here clears flags and the in-flight timer; the
+    // MT.Keying buffer is left intact so anything already keyed still commits
+    // via its own silence timer.
+    const stopKeyerOnFocusLoss = () => { resetKeyer(); };
+    window.addEventListener("blur", stopKeyerOnFocusLoss);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) stopKeyerOnFocusLoss();
     });
   }
 

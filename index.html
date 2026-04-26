@@ -35,67 +35,119 @@
     <aside class="settings" aria-label="Settings">
       <h2>Settings</h2>
 
-      <label>
-        <span class="row">
-          <span class="label-text">Character speed (WPM)<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about character speed">i</button><span class="info-tip" role="tooltip">How fast each dit and dah is sent. At W&nbsp;WPM, one dit = 1200/W&nbsp;ms (PARIS standard). Higher WPM means shorter, faster elements.</span></span></span>
+      <div class="setting">
+        <div class="row">
+          <span class="label-line">
+            <label for="wpm">Character speed (WPM)</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about character speed">i</button>
+              <span id="info-wpm" class="info-tip" role="tooltip">How fast each dit and dah is sent. At W&nbsp;WPM, one dit = 1200/W&nbsp;ms (PARIS standard). Higher WPM means shorter, faster elements.</span>
+            </span>
+          </span>
           <strong id="wpmVal">18</strong>
-        </span>
-        <input type="range" id="wpm" min="5" max="35" step="1" value="18" />
-      </label>
+        </div>
+        <input type="range" id="wpm" aria-describedby="info-wpm" min="5" max="35" step="1" value="18" />
+      </div>
 
-      <label>
-        <span class="row">
-          <span class="label-text">Effective WPM (Farnsworth)<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about Farnsworth">i</button><span class="info-tip" role="tooltip">Set lower than character speed to keep dits and dahs fast while stretching the gap between prompts. Gives you more thinking time without slowing the sound. Capped at character WPM.</span></span></span>
+      <div class="setting">
+        <div class="row">
+          <span class="label-line">
+            <label for="farnsworthWpm">Effective WPM (Farnsworth)</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about Farnsworth">i</button>
+              <span id="info-farnsworth" class="info-tip" role="tooltip">Set lower than character speed to keep dits and dahs fast while stretching the gap between prompts. Gives you more thinking time without slowing the sound. Capped at character WPM.</span>
+            </span>
+          </span>
           <strong id="farnsworthVal">13</strong>
-        </span>
-        <input type="range" id="farnsworthWpm" min="5" max="35" step="1" value="13" />
-      </label>
+        </div>
+        <input type="range" id="farnsworthWpm" aria-describedby="info-farnsworth" min="5" max="35" step="1" value="13" />
+      </div>
 
-      <label>
-        <span class="row">
-          <span class="label-text">Tone (Hz)<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about tone">i</button><span class="info-tip" role="tooltip">Sidetone pitch in Hertz. 600&nbsp;Hz is a common amateur-radio default — pick whatever's comfortable for long sessions.</span></span></span>
+      <div class="setting">
+        <div class="row">
+          <span class="label-line">
+            <label for="freq">Tone (Hz)</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about tone">i</button>
+              <span id="info-tone" class="info-tip" role="tooltip">Sidetone pitch in Hertz. 600&nbsp;Hz is a common amateur-radio default — pick whatever's comfortable for long sessions.</span>
+            </span>
+          </span>
           <strong id="freqVal">600</strong>
-        </span>
-        <input type="range" id="freq" min="300" max="1000" step="20" value="600" />
-      </label>
+        </div>
+        <input type="range" id="freq" aria-describedby="info-tone" min="300" max="1000" step="20" value="600" />
+      </div>
 
-      <label class="checkbox">
-        <input type="checkbox" id="speakLetter" />
-        <span>Speak the letter before the Morse<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about speak letter">i</button><span class="info-tip" role="tooltip">Uses the browser's speech synthesis to say the letter aloud right before the Morse plays. Useful when first introducing a new character.</span></span></span>
-      </label>
-
-      <label>
-        <span class="row">
-          <span class="label-text">Audio aid<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about audio aid">i</button><span class="info-tip" role="tooltip">Whether to play the Morse for you before you key it. Adaptive fades it out per character once your recent accuracy passes 85%. Always keeps it on; never makes you recall the Morse from the letter alone.</span></span></span>
+      <div class="setting setting-checkbox">
+        <input type="checkbox" id="speakLetter" aria-describedby="info-speak" />
+        <label for="speakLetter">Speak the letter before the Morse</label>
+        <span class="info-wrap">
+          <button type="button" class="info-btn" aria-label="More info about speak letter">i</button>
+          <span id="info-speak" class="info-tip" role="tooltip">Uses the browser's speech synthesis to say the letter aloud right before the Morse plays. Useful when first introducing a new character.</span>
         </span>
-        <select id="audioAid">
+      </div>
+
+      <div class="setting">
+        <div class="row">
+          <span class="label-line">
+            <label for="audioAid">Audio aid</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about audio aid">i</button>
+              <span id="info-audio-aid" class="info-tip" role="tooltip">Whether to play the Morse for you before you key it. Adaptive fades it out per character once your recent accuracy passes 85%. Always keeps it on; never makes you recall the Morse from the letter alone.</span>
+            </span>
+          </span>
+        </div>
+        <select id="audioAid" aria-describedby="info-audio-aid">
           <option value="adaptive">adaptive — fades as you learn</option>
           <option value="always">always play</option>
           <option value="never">never play</option>
         </select>
-      </label>
+      </div>
 
-      <label>
-        <span class="row">
-          <span class="label-text">Visual aid<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about visual aid">i</button><span class="info-tip" role="tooltip">Whether to show the Morse symbols (· −) under the letter. Same modes as audio aid — adaptive fades per character once you're consistently right.</span></span></span>
-        </span>
-        <select id="visualAid">
+      <div class="setting">
+        <div class="row">
+          <span class="label-line">
+            <label for="visualAid">Visual aid</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about visual aid">i</button>
+              <span id="info-visual-aid" class="info-tip" role="tooltip">Whether to show the Morse symbols (· −) under the letter. Same modes as audio aid — adaptive fades per character once you're consistently right.</span>
+            </span>
+          </span>
+        </div>
+        <select id="visualAid" aria-describedby="info-visual-aid">
           <option value="adaptive">adaptive — fades as you learn</option>
           <option value="always">always show</option>
           <option value="never">never show</option>
         </select>
-      </label>
+      </div>
 
-      <label class="checkbox">
-        <input type="checkbox" id="iambic" />
-        <span>Iambic keyer (hold to repeat, squeeze to alternate)<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about iambic keyer">i</button><span class="info-tip" role="tooltip">When on: holding a paddle generates dits or dahs at the trainer's WPM, and squeezing both alternates dit-dah (Mode A). When off: each keypress sends exactly one element — closer to a straight key. OS auto-repeat is suppressed either way.</span></span></span>
-      </label>
+      <div class="setting setting-checkbox">
+        <input type="checkbox" id="iambic" aria-describedby="info-iambic" />
+        <label for="iambic">Iambic keyer (hold to repeat, squeeze to alternate)</label>
+        <span class="info-wrap">
+          <button type="button" class="info-btn" aria-label="More info about iambic keyer">i</button>
+          <span id="info-iambic" class="info-tip" role="tooltip">When on: holding a paddle generates dits or dahs at the trainer's WPM, and squeezing both alternates dit-dah (Mode A). When off: each keypress sends exactly one element — closer to a straight key. OS auto-repeat is suppressed either way.</span>
+        </span>
+      </div>
 
       <details>
         <summary>Key bindings (USB Morse keys)</summary>
         <div class="keybinds">
-          <label><span>Dit key<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about dit key">i</button><span class="info-tip" role="tooltip">Which keyboard character sends a dit. Default is&nbsp;<kbd>[</kbd>. Set this to whatever your USB Morse key emits.</span></span></span><input type="text" id="ditKey" maxlength="1" autocomplete="off" /></label>
-          <label><span>Dah key<span class="info-wrap"><button type="button" class="info-btn" aria-label="More info about dah key">i</button><span class="info-tip" role="tooltip">Which keyboard character sends a dah. Default is&nbsp;<kbd>]</kbd>. Must differ from the dit key.</span></span></span><input type="text" id="dahKey" maxlength="1" autocomplete="off" /></label>
+          <div class="keybind">
+            <label for="ditKey">Dit key</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about dit key">i</button>
+              <span id="info-dit-key" class="info-tip" role="tooltip">Which keyboard character sends a dit. Default is&nbsp;<kbd>[</kbd>. Set this to whatever your USB Morse key emits.</span>
+            </span>
+            <input type="text" id="ditKey" aria-describedby="info-dit-key" maxlength="1" autocomplete="off" />
+          </div>
+          <div class="keybind">
+            <label for="dahKey">Dah key</label>
+            <span class="info-wrap">
+              <button type="button" class="info-btn" aria-label="More info about dah key">i</button>
+              <span id="info-dah-key" class="info-tip" role="tooltip">Which keyboard character sends a dah. Default is&nbsp;<kbd>]</kbd>. Must differ from the dit key.</span>
+            </span>
+            <input type="text" id="dahKey" aria-describedby="info-dah-key" maxlength="1" autocomplete="off" />
+          </div>
         </div>
         <p class="muted" id="keyBindingStatus" aria-live="polite"></p>
         <p class="muted">

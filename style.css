@@ -259,7 +259,7 @@ kbd {
 }
 
 /* Settings */
-.settings label {
+.settings .setting {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
@@ -267,15 +267,23 @@ kbd {
   color: var(--muted);
 }
 
-.settings label .row {
+.settings .setting .row {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
 }
 
-.settings label .row strong { color: var(--fg); font-weight: 600; }
+.settings .setting .row strong { color: var(--fg); font-weight: 600; }
 
-.settings label.checkbox {
+.settings .setting .label-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.1rem;
+}
+
+.settings .setting label { cursor: pointer; }
+
+.settings .setting-checkbox {
   flex-direction: row;
   align-items: center;
   gap: 0.5rem;
@@ -319,13 +327,16 @@ details[open] summary::before { content: "▾ "; }
   margin-bottom: 0.4rem;
 }
 
-.keybinds label {
+.keybinds .keybind {
+  display: flex;
   flex-direction: row;
   align-items: center;
   gap: 0.35rem;
   color: var(--fg);
   font-size: 0.9rem;
 }
+
+.keybinds .keybind label { cursor: pointer; }
 
 .muted { color: var(--muted); font-size: 0.78rem; line-height: 1.4; }
 .muted.bad { color: var(--bad); }

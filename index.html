@@ -13,24 +13,69 @@
   </header>
 
   <main>
-    <section class="prompt-area" aria-label="Current prompt">
-      <div class="prompt" id="prompt">—</div>
-      <div class="morse-visual" id="morseVisual"></div>
-      <div class="buffer" id="buffer" aria-label="Your input">&nbsp;</div>
-      <div class="feedback" id="feedback" aria-live="polite"></div>
-      <div class="paddles" aria-label="Touch paddles">
-        <button id="ditButton" class="paddle" type="button" aria-label="Send dit">·</button>
-        <button id="dahButton" class="paddle" type="button" aria-label="Send dah">−</button>
+    <div class="prompt-wrap">
+      <div class="tabs" role="tablist" aria-label="Trainer mode">
+        <button role="tab" id="tabPractice" type="button" aria-selected="true" aria-controls="panelPractice" tabindex="0">Practice</button>
+        <button role="tab" id="tabListen" type="button" aria-selected="false" aria-controls="panelListen" tabindex="-1">Listen</button>
       </div>
-      <div class="controls">
-        <button id="replay" type="button" title="Replay current Morse (R)">▶ Replay</button>
-        <button id="skip" type="button" title="Skip to next (N)">⤼ Skip</button>
-      </div>
-      <p class="hint">
-        <kbd>[</kbd> dit · <kbd>]</kbd> dah · <kbd>Space</kbd>/<kbd>Enter</kbd> submit ·
-        <kbd>Backspace</kbd> erase · <kbd>R</kbd> replay · <kbd>N</kbd> next
-      </p>
-    </section>
+
+      <section id="panelPractice" class="prompt-area" role="tabpanel" aria-labelledby="tabPractice">
+        <div class="prompt" id="prompt">—</div>
+        <div class="morse-visual" id="morseVisual"></div>
+        <div class="buffer" id="buffer" aria-label="Your input">&nbsp;</div>
+        <div class="feedback" id="feedback" aria-live="polite"></div>
+        <div class="paddles" aria-label="Touch paddles">
+          <button id="ditButton" class="paddle" type="button" aria-label="Send dit">·</button>
+          <button id="dahButton" class="paddle" type="button" aria-label="Send dah">−</button>
+        </div>
+        <div class="controls">
+          <button id="replay" type="button" title="Replay current Morse (R)">▶ Replay</button>
+          <button id="skip" type="button" title="Skip to next (N)">⤼ Skip</button>
+        </div>
+        <p class="hint">
+          <kbd>[</kbd> dit · <kbd>]</kbd> dah · <kbd>Space</kbd>/<kbd>Enter</kbd> submit ·
+          <kbd>Backspace</kbd> erase · <kbd>R</kbd> replay · <kbd>N</kbd> next
+        </p>
+      </section>
+
+      <section id="panelListen" class="prompt-area" role="tabpanel" aria-labelledby="tabListen" hidden>
+        <div class="prompt" id="listenPrompt">—</div>
+        <div class="morse-visual" id="listenMorseVisual"></div>
+        <div class="aid-status" id="listenAidStatus" aria-live="polite"></div>
+        <div class="controls">
+          <button id="listenPlay" type="button">▶ Start</button>
+          <button id="listenPause" type="button" hidden>⏸ Pause</button>
+        </div>
+        <div class="setting listen-source-row">
+          <label for="listenSource">Source</label>
+          <select id="listenSource" aria-describedby="info-listen-source">
+            <option value="srs">Active + SRS (weighted)</option>
+            <option value="review">Review only (uniform)</option>
+          </select>
+          <span class="info-wrap">
+            <button type="button" class="info-btn" aria-label="More info about Listen source">i</button>
+            <span id="info-listen-source" class="info-tip" role="tooltip">Active + SRS uses the same weighted picker as Practice — weak characters surface more. Review only picks uniformly across your active set. Listen never promotes new characters.</span>
+          </span>
+        </div>
+        <div class="setting listen-pause-row">
+          <div class="row">
+            <span class="label-line">
+              <label for="listenPause">Pause between letters</label>
+              <span class="info-wrap">
+                <button type="button" class="info-btn" aria-label="More info about listen pause">i</button>
+                <span id="info-listen-pause" class="info-tip" role="tooltip">Silence between consecutive letters in Listen mode. Independent of the Effective&nbsp;WPM (Farnsworth) setting used in Practice.</span>
+              </span>
+            </span>
+            <strong id="listenPauseVal">1.0 s</strong>
+          </div>
+          <input type="range" id="listenPause" aria-describedby="info-listen-pause" min="250" max="5000" step="250" value="1000" />
+        </div>
+        <p class="hint">
+          Listen does not change practice progress.
+          <kbd>Space</kbd> toggles play/pause.
+        </p>
+      </section>
+    </div>
 
     <aside class="settings" aria-label="Settings">
       <h2>Settings</h2>
@@ -181,6 +226,7 @@
   <script src="js/morse.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/srs.js"></script>
+  <script src="js/listen.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

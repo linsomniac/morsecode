@@ -18,6 +18,7 @@ MT.SRS = (function () {
     wpm: { min: 5, max: 35, default: 18 },
     farnsworthWpm: { min: 5, max: 35, default: 13 },
     frequencyHz: { min: 300, max: 1000, default: 600 },
+    listenPauseMs: { min: 250, max: 5000, default: 1000 },
   };
   const AID_MODES = new Set(["adaptive", "always", "never"]);
   // Reserved by the input handler; cannot be used as a dit/dah key.
@@ -37,6 +38,8 @@ MT.SRS = (function () {
         dahKey: "]",
         iambicMode: true,
         autoSubmit: true,
+        listenSource: "srs",   // listen mode picker: "srs" (weighted) | "review" (uniform)
+        listenPauseMs: 1000,   // pause between letters in listen mode
       },
       progress: makeProgressMap(),
       activeChars: ["K", "M"],
@@ -104,6 +107,8 @@ MT.SRS = (function () {
       }
       out.autoSubmit = raw.autoSubmit === undefined ? def.autoSubmit : !!raw.autoSubmit;
       out.iambicMode = raw.iambicMode === undefined ? def.iambicMode : !!raw.iambicMode;
+      out.listenSource = raw.listenSource === "review" ? "review" : def.listenSource;
+      out.listenPauseMs = clampInt(raw.listenPauseMs, SETTING_RANGES.listenPauseMs);
     }
     return out;
   }

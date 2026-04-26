@@ -67,6 +67,14 @@ window.MT = window.MT || {};
     $("#iambic").checked = !!s.iambicMode;
     $("#ditKey").value = s.ditKey;
     $("#dahKey").value = s.dahKey;
+    $("#listenSource").value = s.listenSource;
+    $("#listenPause").value = s.listenPauseMs;
+    $("#listenPauseVal").textContent = formatPauseLabel(s.listenPauseMs);
+  }
+
+  // Render a millisecond pause as a friendly seconds label, e.g. 1000 → "1.0 s".
+  function formatPauseLabel(ms) {
+    return (Number(ms) / 1000).toFixed(2).replace(/0$/, "") + " s";
   }
 
   // ---- UI binding ---------------------------------------------------------
@@ -169,8 +177,42 @@ window.MT = window.MT || {};
         applySettingsToUI();
         applySettingsToAudio();
         renderProgressTable();
-        nextPrompt();
+        // showPanel("practice") restarts the prompt cycle AND clears any
+        // listen-mode state — important if the user is on the Listen tab when
+        // they reset, otherwise practice would silently restart behind a
+        // hidden panel and listen's stale lastChar would survive the wipe.
+        showPanel("practice");
       }
+    });
+
+    // Listen-mode controls
+    $("#listenPlay").addEventListener("click", () => MT.Listen.start());
+    $("#listenPause").addEventListener("click", () => MT.Listen.stop());
+    $("#listenSource").addEventListener("change", (e) => {
+      state.settings.listenSource = e.target.value === "review" ? "review" : "srs";
+      MT.SRS.save();
+    });
+    $("#listenPause").addEventListener("input", (e) => {
+      const v = parseInt(e.target.value, 10);
+      state.settings.listenPauseMs = v;
+      $("#listenPauseVal").textContent = formatPauseLabel(v);
+      MT.SRS.save();
+    });
+
+    // Tab strip — click activates, ARIA roving tabindex w/ arrow keys
+    $("#tabPractice").addEventListener("click", () => showPanel("practice"));
+    $("#tabListen").addEventListener("click", () => showPanel("listen"));
+    bindTabKeyNav($("#tabPractice"), $("#tabListen"), "listen");
+    bindTabKeyNav($("#tabListen"), $("#tabPractice"), "practice");
+
+    // Wire MT.Listen → DOM. onPrompt is called on every iteration; onStateChange
+    // toggles the Start/Pause button visibility.
+    MT.Listen.setHandlers({
+      onPrompt: renderListenPrompt,
+      onStateChange: (running) => {
+        $("#listenPlay").hidden = running;
+        $("#listenPause").hidden = !running;
+      },
     });
 
     function updateKeyBinding(field, raw) {
@@ -206,6 +248,80 @@ window.MT = window.MT || {};
     });
   }
 
+  // ---- mode tabs ----------------------------------------------------------
+
+  // Switch between the Practice and Listen panels.
+  //
+  // AIDEV-NOTE: Switching to Listen MUST bump promptToken — Practice's
+  // nextPrompt() may be awaiting TTS or playMorse, and MT.Audio.stop()
+  // resolves those Promises via onerror. Without invalidating the token,
+  // Practice's post-await guards (myToken !== promptToken) pass and the
+  // stale prompt continues to the next step, racing Listen.
+  // Tab buttons themselves are interactive — leaving focus on a tab after
+  // switch-to-Practice means the global keydown handler treats paddle keys
+  // as belonging to an interactive target and suppresses them, so we move
+  // focus off the tab before unlocking practice input.
+  function showPanel(which) {
+    const isPractice = which === "practice";
+    const tabPractice = $("#tabPractice");
+    const tabListen = $("#tabListen");
+    tabPractice.setAttribute("aria-selected", isPractice ? "true" : "false");
+    tabListen.setAttribute("aria-selected", isPractice ? "false" : "true");
+    tabPractice.tabIndex = isPractice ? 0 : -1;
+    tabListen.tabIndex = isPractice ? -1 : 0;
+    $("#panelPractice").hidden = !isPractice;
+    $("#panelListen").hidden = isPractice;
+
+    if (isPractice) {
+      MT.Listen.stop();
+      // Only blur if focus is sitting on a tab button — otherwise we'd be
+      // taking focus away from something the user might care about.
+      const ae = document.activeElement;
+      if (ae === tabPractice || ae === tabListen) ae.blur();
+      if (started) nextPrompt();
+    } else {
+      promptToken++;
+      MT.Audio.stop();
+      resetKeyer();
+      clearAdvanceTimer();
+      inputLocked = true;
+      // After click, focus on play so Space/Enter starts; for keyboard users
+      // arriving via arrow-key tab nav, focus is already on #tabListen — the
+      // explicit focus shift here mirrors the click case.
+      $("#listenPlay").focus();
+    }
+  }
+
+  // ARIA APG tablist: ArrowLeft/Right (and Home/End for a 2-tab strip,
+  // equivalent to L/R) move focus to the sibling tab and activate it.
+  function bindTabKeyNav(btn, otherBtn, otherWhich) {
+    btn.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight" ||
+          e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        otherBtn.focus();
+        showPanel(otherWhich);
+      }
+    });
+  }
+
+  // Render a Listen prompt: letter + (optional) morse-visual + aid status.
+  // Reuses the same per-character adaptive aid logic as Practice so a
+  // mastered character will fade its visual and skip its morse audio
+  // (the latter happens in MT.Listen, not here).
+  function renderListenPrompt(ch, morse) {
+    $("#listenPrompt").textContent = MT.displayLabel(ch);
+    const visAid = MT.SRS.shouldUseVisualAid(ch);
+    const v = $("#listenMorseVisual");
+    v.textContent = visAid ? MT.formatMorseVisual(morse) : "";
+    v.classList.toggle("hidden-aid", !visAid);
+
+    const aud = MT.SRS.shouldUseAudioAid(ch) ? "audio: on" : "audio: off";
+    const vis = visAid ? "visual: on" : "visual: off";
+    const acc = Math.round(MT.SRS.recentAccuracy(ch) * 100);
+    $("#listenAidStatus").textContent = `${aud} · ${vis} · recent ${acc}%`;
+  }
+
   // ---- keyboard input -----------------------------------------------------
 
   // AIDEV-NOTE: Anything that handles its own activation keys natively must be
@@ -229,6 +345,19 @@ window.MT = window.MT || {};
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           $("#startOverlay button").click();
+        }
+        return;
+      }
+
+      // Listen panel: Space/Enter toggle play/pause; all other practice
+      // shortcuts (dit/dah/R/N/Backspace) are scoped to Practice and
+      // would either no-op (gated by inputLocked) or do something wrong
+      // (R/N target practice's currentMorse) — short-circuit them here.
+      if (!$("#panelListen").hidden) {
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault();
+          if (MT.Listen.isRunning()) MT.Listen.stop();
+          else MT.Listen.start();
         }
         return;
       }
@@ -413,7 +542,7 @@ window.MT = window.MT || {};
     $("#prompt").textContent = MT.displayLabel(currentChar);
     const visAid = MT.SRS.shouldUseVisualAid(currentChar);
     const morseVisual = $("#morseVisual");
-    morseVisual.textContent = visAid ? formatMorseVisual(currentMorse) : "";
+    morseVisual.textContent = visAid ? MT.formatMorseVisual(currentMorse) : "";
     morseVisual.classList.toggle("hidden-aid", !visAid);
     morseVisual.classList.remove("wrong-answer");   // clear any leftover red from the previous prompt
     refreshAidStatus();
@@ -425,13 +554,6 @@ window.MT = window.MT || {};
     const vis = MT.SRS.shouldUseVisualAid(currentChar) ? "visual: on" : "visual: off";
     const acc = Math.round(MT.SRS.recentAccuracy(currentChar) * 100);
     $("#aidStatus").textContent = `${aud} · ${vis} · recent ${acc}%`;
-  }
-
-  function formatMorseVisual(s) {
-    return s
-      .split("")
-      .map((c) => (c === "." ? "·" : c === "-" ? "−" : c))
-      .join("  ");
   }
 
   // Pronounceable form for the aria-live feedback ("dah dit dah") so screen
@@ -503,7 +625,7 @@ window.MT = window.MT || {};
       // Surface the correct morse where the visual aid normally lives, in red.
       // Works whether or not the aid was on for this prompt — when wrong, the
       // user needs to see the answer regardless of mastery state.
-      morseVisual.textContent = formatMorseVisual(currentMorse);
+      morseVisual.textContent = MT.formatMorseVisual(currentMorse);
       morseVisual.classList.remove("hidden-aid");
       morseVisual.classList.add("wrong-answer");
       // The morseVisual itself isn't aria-live (it'd be too noisy on every
@@ -556,7 +678,7 @@ window.MT = window.MT || {};
 
       const tdMorse = document.createElement("td");
       const code = document.createElement("code");
-      code.textContent = formatMorseVisual(MT.charToMorse(ch) || "");
+      code.textContent = MT.formatMorseVisual(MT.charToMorse(ch) || "");
       tdMorse.appendChild(code);
       tr.appendChild(tdMorse);
 

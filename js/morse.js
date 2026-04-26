@@ -30,3 +30,11 @@ MT.displayLabel = function (ch) {
   if (ch === "/") return "/ (AR)";
   return ch;
 };
+
+// Render a morse string ("...-") with bullet/minus glyphs and spacing for display.
+MT.formatMorseVisual = function (s) {
+  return String(s || "")
+    .split("")
+    .map((c) => (c === "." ? "·" : c === "-" ? "−" : c))
+    .join("  ");
+};

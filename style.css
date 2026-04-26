@@ -87,14 +87,77 @@ main {
   }
 }
 
-.prompt-area {
+.prompt-wrap {
   grid-area: prompt;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.prompt-area {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 2rem 1.5rem 1.5rem;
   text-align: center;
   box-shadow: var(--shadow);
+}
+
+/* Tab strip above the prompt panel. ARIA roving-tabindex pattern; only the
+   active tab is in the focus order. */
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.tabs button[role="tab"] {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-bottom: 2px solid transparent;
+  padding: 0.45rem 1rem;
+  border-radius: 8px 8px 0 0;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.tabs button[role="tab"]:hover {
+  color: var(--fg);
+  border-color: var(--accent);
+}
+
+.tabs button[role="tab"][aria-selected="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: var(--panel);
+}
+
+.tabs button[role="tab"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Listen-panel source-select row. Lays out label + select + info button on
+   a single line, distinct from the centered prompt above. */
+.listen-source-row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  color: var(--fg);
+}
+
+#panelListen .aid-status {
+  margin-top: 0.4rem;
+}
+
+#panelListen .hint {
+  margin-top: 1rem;
 }
 
 .settings {
